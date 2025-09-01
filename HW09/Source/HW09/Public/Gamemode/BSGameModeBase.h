@@ -28,8 +28,11 @@ public:
 
 	FString JudgeResult(const FString& InSecretNumberString, const FString& InGuessNumberString);
 
-
+	void IncreaseGuessCount(ABSPlayerController* InChattingPlayerController);
 	
+	void ResetGame();
+	void JudgeGame(ABSPlayerController* InChattingPlayerController, int InStrikeCount);
+
 protected:
 	FString SecretNumberString;
 

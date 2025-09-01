@@ -4,9 +4,16 @@
 #include "PlayerController/BSPlayerController.h"
 #include "Widget/BSInput.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/BSGameModeBase.h"
+#include "Player/BSPlayerState.h"
+#include "Net/UnrealNetwork.h"
+
+
+ABSPlayerController::ABSPlayerController()
+{
+	bReplicates = true;
+}
 
 void ABSPlayerController::BeginPlay()
 {
@@ -28,15 +35,33 @@ void ABSPlayerController::BeginPlay()
 			ChatInputWidgetInstance->AddToViewport();
 		}
 	}
+
+	if (IsValid(NotificationTextWidgetClass) == true)
+	{
+		NotificationTextWidgetInstance = CreateWidget<UUserWidget>(this, NotificationTextWidgetClass);
+		if (IsValid(NotificationTextWidgetInstance) == true)
+		{
+			NotificationTextWidgetInstance->AddToViewport();
+		}
+	}
+	
 }
 
 void ABSPlayerController::SetChatMessageString(const FString& InChatMessageString)
 {
-	ChatMessageString = InChatMessageString;
 
+	ChatMessageString = InChatMessageString;
+	
 	if (IsLocalController() == true)
 	{
-		ServerRPCPrintChatMessageString(InChatMessageString);		
+
+		ABSPlayerState* PS = GetPlayerState<ABSPlayerState>();
+		if (IsValid(PS) == true)
+		{
+			FString CombinedMessageString = PS->GetPlayerInfoString() + TEXT(": ") + InChatMessageString;
+
+			ServerRPCPrintChatMessageString(CombinedMessageString);
+		}
 	}
 }
 
@@ -62,4 +87,11 @@ void ABSPlayerController::ServerRPCPrintChatMessageString_Implementation(const F
 			BSGM->PrintChatMessageString(this, InChatMessageString);
 		}
 	}
+}
+
+void ABSPlayerController::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ThisClass, NotificationText);
 }

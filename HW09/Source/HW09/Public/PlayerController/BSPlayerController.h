@@ -8,6 +8,7 @@
 #include "BSPlayerController.generated.h"
 
 class UBSInput;
+class UUserWidget;
 
 /**
  * 
@@ -19,6 +20,8 @@ class HW09_API ABSPlayerController : public APlayerController
 
 
 public:
+
+	ABSPlayerController();
 	virtual void BeginPlay() override;
 
 	void SetChatMessageString(const FString& InChatMessageString);
@@ -30,6 +33,9 @@ public:
     
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPrintChatMessageString(const FString& InChatMessageString);
+
+	UPROPERTY(Replicated, BlueprintReadOnly)
+	FText NotificationText;
 	
 protected:
 	UPROPERTY(EditDefaultsOnly)
@@ -39,5 +45,10 @@ protected:
 	TObjectPtr<UBSInput> ChatInputWidgetInstance;
 	
 	FString ChatMessageString;
-
+	
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<UUserWidget> NotificationTextWidgetClass;
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> NotificationTextWidgetInstance;
 };

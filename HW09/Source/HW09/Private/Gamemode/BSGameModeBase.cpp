@@ -6,22 +6,33 @@
 #include "GameState/BSGameState.h"
 #include "PlayerController/BSPlayerController.h"
 #include "EngineUtils.h"
+#include "Player/BSPlayerState.h"
 
 void ABSGameModeBase::OnPostLogin(AController* NewPlayer)
 {
 	Super::OnPostLogin(NewPlayer);
 
-	ABSGameState* GameStateBase =  GetGameState<ABSGameState>();
-	if (IsValid(GameStateBase) == true)
-	{
-		GameStateBase->MulticastRPCBroadcastLoginMessage(TEXT("XXXXXXX"));
-	}
-
+	
 	ABSPlayerController* PlayerController = Cast<ABSPlayerController>(NewPlayer);
 	if (IsValid(PlayerController) == true)
 	{
+		PlayerController->NotificationText = FText::FromString(TEXT("Connected to the game server."));
+
 		AllPlayerControllers.Add(PlayerController);
+
+		ABSPlayerState* PS = PlayerController->GetPlayerState<ABSPlayerState>();
+		if (IsValid(PS) == true)
+		{
+			PS->PlayerNameString = TEXT("Player") + FString::FromInt(AllPlayerControllers.Num());
+		}
+
+		ABSGameState* GameStateBase =  GetGameState<ABSGameState>();
+		if (IsValid(GameStateBase) == true)
+		{
+			GameStateBase->MulticastRPCBroadcastLoginMessage(PS->PlayerNameString);
+		}
 	}
+	
 }
 
 void ABSGameModeBase::BeginPlay()
@@ -120,11 +131,14 @@ FString ABSGameModeBase::JudgeResult(const FString& InSecretNumberString, const 
 void ABSGameModeBase::PrintChatMessageString(ABSPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
 	FString ChatMessageString = InChatMessageString;
-	int Index = InChatMessageString.Len() > 3;
+	int Index = InChatMessageString.Len() - 3;
 	FString GuessNumberString = InChatMessageString.RightChop(Index);
 	if (IsGuessNumberString(GuessNumberString) == true)
 	{
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
+		
+		IncreaseGuessCount(InChattingPlayerController);
+
 		for (TActorIterator<ABSPlayerController> It(GetWorld()); It; ++It)
 		{
 			ABSPlayerController* PlayerController = *It;
@@ -132,6 +146,9 @@ void ABSGameModeBase::PrintChatMessageString(ABSPlayerController* InChattingPlay
 			{
 				FString CombinedMessageString = InChatMessageString + TEXT(" -> ") + JudgeResultString;
 				PlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
+
+				int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
+				JudgeGame(InChattingPlayerController, StrikeCount);
 			}
 		}
 	}
@@ -143,6 +160,74 @@ void ABSGameModeBase::PrintChatMessageString(ABSPlayerController* InChattingPlay
 			if (IsValid(BSPlayerController) == true)
 			{
 				BSPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
+			}
+		}
+	}
+}
+
+
+void ABSGameModeBase::IncreaseGuessCount(ABSPlayerController* InChattingPlayerController)
+{
+	ABSPlayerState* PS = InChattingPlayerController->GetPlayerState<ABSPlayerState>();
+	if (IsValid(PS) == true)
+	{
+		PS->CurrentGuessCount++;
+	}
+}
+
+void ABSGameModeBase::ResetGame()
+{
+	SecretNumberString = GenerateSecretNumber();
+
+	for (const auto& PlayerController : AllPlayerControllers)
+	{
+		ABSPlayerState* PS = PlayerController->GetPlayerState<ABSPlayerState>();
+		if (IsValid(PS) == true)
+		{
+			PS->CurrentGuessCount = 0;
+		}
+	}
+}
+
+void ABSGameModeBase::JudgeGame(ABSPlayerController* InChattingPlayerController, int InStrikeCount)
+{
+	if (3 == InStrikeCount)
+	{
+		ABSPlayerState* PS = InChattingPlayerController->GetPlayerState<ABSPlayerState>();
+		for (const auto& PlayerController : AllPlayerControllers)
+		{
+			if (IsValid(PS) == true)
+			{
+				FString CombinedMessageString = PS->PlayerNameString + TEXT(" has won the game.");
+				PlayerController->NotificationText = FText::FromString(CombinedMessageString);
+
+				ResetGame();
+			}
+		}
+	}
+	else
+	{
+		bool bIsDraw = true;
+		for (const auto& PlayerController : AllPlayerControllers)
+		{
+			ABSPlayerState* PS = PlayerController->GetPlayerState<ABSPlayerState>();
+			if (IsValid(PS) == true)
+			{
+				if (PS->CurrentGuessCount < PS->MaxGuessCount)
+				{
+					bIsDraw = false;
+					break;
+				}
+			}
+		}
+
+		if (true == bIsDraw)
+		{
+			for (const auto& CXPlayerController : AllPlayerControllers)
+			{
+				CXPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
+
+				ResetGame();
 			}
 		}
 	}
